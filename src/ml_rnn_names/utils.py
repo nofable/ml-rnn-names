@@ -1,5 +1,7 @@
 from pathlib import Path
 import torch
+import time
+import math
 
 
 def get_project_root():
@@ -22,3 +24,11 @@ def torch_device_setup():
     torch.set_default_device(device)
     print(f"Using device = {torch.get_default_device()}")
     return device
+
+
+def timeSince(since):
+    now = time.time()
+    s = now - since
+    m = math.floor(s / 60)
+    s -= m * 60
+    return "%dm %ds" % (m, s)

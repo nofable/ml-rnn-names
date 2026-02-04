@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import f1_score
 
 from ml_rnn_names.data import collate_names
+from ml_rnn_names.processing import categoryTensor, inputTensor, targetTensor
 
 
 def set_seed(seed, device=None):
@@ -127,3 +128,52 @@ def train(
         "val_losses": all_val_losses,
         "val_f1s": all_val_f1s,
     }
+
+
+# Random item from a list
+def randomChoice(l):
+    return l[random.randint(0, len(l) - 1)]
+
+
+# Get a random category and random line from that category
+def randomTrainingPair(all_categories, category_lines):
+    category = randomChoice(all_categories)
+    line = randomChoice(category_lines[category])
+    return category, line
+
+
+# Make category, input, and target tensors from a random category, line pair
+def randomTrainingExample(all_categories, category_lines):
+    category, line = randomTrainingPair(all_categories, category_lines)
+    category_tensor = categoryTensor(all_categories, category)
+    input_line_tensor = inputTensor(line)
+    target_line_tensor = targetTensor(line)
+    return category_tensor, input_line_tensor, target_line_tensor
+
+
+def train_gen(
+    model,
+    category_tensor,
+    input_line_tensor,
+    target_line_tensor,
+    optimizer,
+    criterion=nn.NLLLoss(),
+):
+    target_line_tensor = target_line_tensor.unsqueeze(-1)
+    hidden = model.initHidden()
+
+    model.train()
+    optimizer.zero_grad()
+
+    loss = 0
+
+    # this is doing the RNN and storing the hidden state in `hidden` variable
+    for i in range(input_line_tensor.size(0)):
+        output, hidden = model(category_tensor, input_line_tensor[i], hidden)
+        line_loss = criterion(output, target_line_tensor[i])
+        loss += line_loss
+
+    loss.backward()
+    optimizer.step()
+
+    return output, loss.item() / input_line_tensor.size(0)
