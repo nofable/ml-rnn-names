@@ -5,7 +5,7 @@ import matplotlib.ticker as ticker
 from torch import nn
 from torch.utils.data import DataLoader
 from ml_rnn_names.data import collate_names
-from ml_rnn_names.training import evaluate_loss
+from ml_rnn_names.training import evaluate
 
 
 def compute_accuracy(model, data):
@@ -80,22 +80,28 @@ def evaluate_model(model, train_data, val_data=None, test_data=None, criterion=N
     """
     Comprehensive evaluation of a model.
 
-    Returns dict with train/val/test metrics (accuracy and loss).
+    Returns dict with train/val/test metrics (accuracy, loss, and macro_f1).
     """
     if criterion is None:
         criterion = nn.NLLLoss()
 
+    train_metrics = evaluate(model, train_data, criterion)
     results = {
         "train_accuracy": compute_accuracy(model, train_data),
-        "train_loss": evaluate_loss(model, train_data, criterion),
+        "train_loss": train_metrics["loss"],
+        "train_macro_f1": train_metrics["macro_f1"],
     }
 
     if val_data is not None:
+        val_metrics = evaluate(model, val_data, criterion)
         results["val_accuracy"] = compute_accuracy(model, val_data)
-        results["val_loss"] = evaluate_loss(model, val_data, criterion)
+        results["val_loss"] = val_metrics["loss"]
+        results["val_macro_f1"] = val_metrics["macro_f1"]
 
     if test_data is not None:
+        test_metrics = evaluate(model, test_data, criterion)
         results["test_accuracy"] = compute_accuracy(model, test_data)
-        results["test_loss"] = evaluate_loss(model, test_data, criterion)
+        results["test_loss"] = test_metrics["loss"]
+        results["test_macro_f1"] = test_metrics["macro_f1"]
 
     return results

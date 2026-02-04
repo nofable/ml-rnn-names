@@ -5,6 +5,8 @@ import time
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+from sklearn.metrics import f1_score
+
 from ml_rnn_names.data import collate_names
 
 
@@ -17,8 +19,8 @@ def set_seed(seed, device=None):
         torch.cuda.manual_seed_all(seed)
 
 
-def evaluate_loss(model, data, criterion=nn.NLLLoss()):
-    """Compute average loss on a dataset."""
+def evaluate(model, data, criterion=nn.NLLLoss()):
+    """Compute average loss and Macro F1 on a dataset."""
     model.eval()
     dataloader = DataLoader(
         data,
@@ -28,13 +30,20 @@ def evaluate_loss(model, data, criterion=nn.NLLLoss()):
     )
     total_loss = 0
     n_batches = 0
+    all_preds = []
+    all_labels = []
     with torch.no_grad():
         for labels, padded_texts, lengths in dataloader:
             output = model(padded_texts, lengths)
             loss = criterion(output, labels)
             total_loss += loss.item()
             n_batches += 1
-    return total_loss / n_batches if n_batches > 0 else 0
+            preds = output.argmax(dim=1)
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+    avg_loss = total_loss / n_batches if n_batches > 0 else 0
+    macro_f1 = f1_score(all_labels, all_preds, average="macro")
+    return {"loss": avg_loss, "macro_f1": macro_f1}
 
 
 def train(
@@ -56,11 +65,13 @@ def train(
         dict with keys:
             - "train_losses": list of average training loss per epoch
             - "val_losses": list of validation loss per epoch (None if no validation_data)
+            - "val_f1s": list of validation Macro F1 per epoch (None if no validation_data)
     """
     set_seed(seed, device)
 
     all_train_losses = []
     all_val_losses = [] if validation_data is not None else None
+    all_val_f1s = [] if validation_data is not None else None
 
     model = model.to(device)
     model.train()
@@ -96,13 +107,16 @@ def train(
         all_train_losses.append(avg_train_loss)
 
         if validation_data is not None:
-            val_loss = evaluate_loss(model, validation_data, criterion)
-            all_val_losses.append(val_loss)
+            val_metrics = evaluate(model, validation_data, criterion)
+            all_val_losses.append(val_metrics["loss"])
+            all_val_f1s.append(val_metrics["macro_f1"])
 
         if epoch % report_every == 0:
             msg = f"{epoch} ({epoch / n_epoch:.0%}): train_loss={avg_train_loss:.4f}"
             if validation_data is not None:
-                msg += f", val_loss={all_val_losses[-1]:.4f}"
+                msg += (
+                    f", val_loss={all_val_losses[-1]:.4f}, val_f1={all_val_f1s[-1]:.4f}"
+                )
             print(msg)
 
     end = time.time()
@@ -111,4 +125,5 @@ def train(
     return {
         "train_losses": all_train_losses,
         "val_losses": all_val_losses,
+        "val_f1s": all_val_f1s,
     }

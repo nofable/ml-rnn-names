@@ -1,4 +1,3 @@
-from io import open
 import glob
 import os
 import time
@@ -27,7 +26,9 @@ class NamesDataset(Dataset):
                 0
             ]  # Irish.txt -> "Irish"
             labels_set.add(label)  # add the label to the set
-            lines = open(filename, encoding="utf-8").read().strip().split("\n")
+            with open(filename, encoding="utf-8") as f:
+                lines = f.read().strip().split("\n")
+            lines = list(dict.fromkeys(lines))  # deduplicate within file
             for name in lines:
                 self.data.append(name)
                 self.data_tensors.append(line_to_tensor(name))
@@ -44,7 +45,7 @@ class NamesDataset(Dataset):
             )
             self.labels_tensors.append(
                 temp_tensor
-            )  # An index of each label [[0.0], [1.0], [1.0], ...]
+            )  # An index of each label from the labels_uniq list [[0.0], [1.0], [1.0], ...]
 
     def __len__(self):
         return len(self.data)
